@@ -1,6 +1,133 @@
 import numpy as np
 from timeit import default_timer as timer
 from matplotlib import pyplot as plt
+import pandas as pd
+import random
+
+class LagrangeInterpolation:
+
+    def __init__(self, df: pd.DataFrame, points_limit=12, random=False, filename=None):
+        self.name = "" if filename is None else filename.split('.')[0]
+        self.data_X = df['Dystans (m)']
+        self.data_Y = df['Wysokość (m)']
+        self.points_limit = points_limit
+        self.random = random
+        self.choose_points()
+        self.n = len(self.X)
+
+    def choose_points(self):
+        self._X = []
+        self._Y = []
+        data_size = self.data_X.shape[0]
+
+        if self.random:
+            # random spacing
+            points_amount = 0
+            points_tuples = []
+
+            points_tuples.append((self.data_X[0], self.data_Y[0]))
+            points_tuples.append((self.data_X[self.data_X.shape[0]-1], self.data_Y[self.data_X.shape[0]-1]))
+
+            while points_amount < self.points_limit:
+                i = random.randint(0,data_size - 1)
+
+                if self.data_X[i] not in self._X:
+                    points_tuples.append((self.data_X[i], self.data_Y[i]))
+                    points_amount += 1
+
+            points_tuples.sort(key=lambda x: x[0])
+            for x, y in points_tuples:
+                self._X.append(x)
+                self._Y.append(y)
+
+        else:
+            # even spacing
+            step = data_size // (self.points_limit - 1)
+
+            for i in range(0, data_size, step):
+                self._X.append(self.data_X[i])
+                self._Y.append(self.data_Y[i])
+
+        print(self.X)
+        print(self.Y)
+    
+    def basis(self, j):
+        b = [(self.xx - self.X[m]) / (self.X[j] - self.X[m]) for m in range(self.n) if m != j]
+        return np.prod(b, axis=0) * self.Y[j]
+
+    def interpolate(self):
+        self.xx = np.arange(self.X[0] * 10, (self.X[-1] * 10)) / 10
+        b = [self.basis(j) for j in range(self.n)]
+        self._values = np.sum(b, axis=0)
+
+    @property
+    def X(self):
+        return self._X
+
+    @property
+    def Y(self):
+        return self._Y
+
+    @property
+    def values(self):
+        return self._values
+
+    def plot(self):
+
+        # Do plotowania:
+        # wszystkie punkty jakie mam razem z ich wartościami
+        # interpolowane punkty (tyle ile ich miało być) razem z wartościami
+        print(f'Name = {self.name}')
+        plt.plot(self.data_X, self.data_Y, label="Actual values")
+        print(len(self.xx))
+        print(self.values)
+        plt.plot(self.xx, self.values, color='red', label="Interpolated values")
+        ax = plt.gca()
+        ax.set_ylim(min(self.data_Y) * 0.9, max(self.data_Y) * 1.1)
+        plt.legend()
+        plt.xlabel('Odleglosc [m]')
+        plt.ylabel('Wysokosc [m]')
+        plt.title(f'Interpolacja dla {self.n} punktow')
+        plt.scatter(self.X, self.Y, color='red')
+        plt.show()
+
+class SplineInterpolation:
+
+    def __init__(self, df: pd.DataFrame, points_limit=12, random=False, filename=None):
+        self.name = "" if filename is None else filename.split('.')[0]
+        self.data_X = df['Dystans (m)']
+        self.data_Y = df['Wysokość (m)']
+        self.points_limit = points_limit
+        self.random = random
+        self.choose_points()
+        self.n = len(self.X)
+
+    def choose_points(self):
+        self._X = []
+        self._Y = []
+        data_size = self.data_X.shape[0]
+
+        if self.random:
+            # random spacing
+            points_amount = 0
+            points_tuples = []
+
+            points_tuples.append((self.data_X[0], self.data_Y[0]))
+            points_tuples.append((self.data_X[self.data_X.shape[0]-1], self.data_Y[self.data_X.shape[0]-1]))
+            
+            while points_amount < self.points_limit:
+                i = random.randint(0,data_size - 1)
+
+                if self.data_X[i] not in self._X:
+                    points_tuples.append((self.data_X[i], self.data_Y[i]))
+                    points_amount += 1
+
+            points_tuples.sort(key=lambda x: x[0])
+            for x, y in points_tuples:
+                self._X.append(x)
+                self._Y.append(y)
+
+
 
 def seperate(func):
     def inner(*args, **kwargs):
@@ -10,68 +137,23 @@ def seperate(func):
 
     return inner
 
-# Creates banded matrix with dimensions equal to size x size and 
-# band consisting of 5 elements spread on 5 diagonals
-def create_band_matrix(size: int, band: list[int]=None) -> np.ndarray:
-    if band is None or len(band) > 3:
-        band = [1, 1, 1]
-    
-    A = np.zeros((size, size))
+def lu_factorization(A: np.ndarray):
+    n = A.shape[0]
+    piv = np.arange(0,n)
+    for k in range(n-1):
 
-    for i in range(size):
-        for j in range(size):
-            if i == j:
-                A[i][j] = band[0]
+        # pivoting
+        max_row_index = np.argmax(abs(A[k:n,k])) + k
+        piv[[k,max_row_index]] = piv[[max_row_index,k]]
+        A[[k,max_row_index]] = A[[max_row_index,k]]
 
-            if i == j + 1 or i == j - 1:
-                A[i][j] = band[1]
+        # LU 
+        for i in range(k+1,n):          
+            A[i,k] = A[i,k]/A[k,k]      
+            for j in range(k+1,n):      
+                A[i,j] -= A[i,k]*A[k,j] 
 
-            if i == j + 2 or i == j - 2:
-                A[i][j] = band[2]
-    
-    return A
-
-# Creates vector b with values defined by the expression
-# sin(n * (f + 1)) where n is n-th element in the vector
-def create_b_vector(size: int, f: int) -> np.ndarray:
-    b = np.zeros((size, 1))
-
-    for i in range(size):
-        b[i][0] = np.sin(i * (f + 1))
-
-    return b
-
-def pivot(A: np.ndarray) -> np.ndarray:
-    pass
-
-@seperate
-def solve_lu_factorization(A: np.ndarray, b: np.ndarray) -> np.ndarray:
-    m = A.shape[0]
-
-    print(f'Matrix size = {m}')
-    print('Started solving with LU factorization...')
-    
-    U = A.copy()
-    L = np.eye(m)
-    x = np.zeros(m)
-
-    U = pivot(U)
-
-    for k in range(m - 1):
-        for j in range(k + 1, m):
-            L[j][k] = U[j][k] / U[k][k]
-            U[j][k:m] = U[j][k:m] - (L[j][k] * U[k][k:m])
-
-    y = forward_substitution(L, b)
-
-    x = backward_substitution(U, y)
-
-    res = np.linalg.norm((A @ x) - b)
-
-    print('Finished solving with LU factorization')
-    print(f'Residuum norm = {res}')
-
-    return x
+    return [A, piv]
 
 def forward_substitution(L: np.ndarray, b: np.ndarray) -> np.ndarray:
     size = L.shape[0]
@@ -108,15 +190,3 @@ def backward_substitution(U: np.ndarray, b: np.ndarray) -> np.ndarray:
         x[m] = (b[m] - sub) / U[m][m]
 
     return x
-
-@seperate
-def plot_times(N: list[int], jacobi: list[float], gauss_seidl: list[float], lu: list[float]):
-    plt.plot(N, jacobi, label='Jacobi')
-    plt.plot(N, gauss_seidl, label='Gauss-Seidl')
-    plt.plot(N, lu, label='LU factorization')
-
-    plt.xlabel('Matrices dimenions [j]')
-    plt.ylabel('Time [s]')
-    plt.title('Time comparison between Jacobi and Gauss-Seidl methods')
-    plt.legend()
-    plt.show()
