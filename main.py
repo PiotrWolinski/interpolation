@@ -18,13 +18,19 @@ class Solution:
         print(self._data)
 
     def lagrange(self):
-        lagrange = func.LagrangeInterpolation(self._data, 6, random=True, filename=self._path)
+        lagrange = func.LagrangeInterpolation(self._data, points_limit=6, random=True, filename=self._path)
         lagrange.interpolate()
         lagrange.plot()
 
+    def spline(self):
+        spline = func.SplineInterpolation(self._data, points_limit=20, random=False, filename=self._path)
+        spline.interpolate()
+        spline.plot()
+
 def main():
-    solution = Solution() # 'test.csv'
-    solution.lagrange()
+    solution = Solution() # 'test.csv' 'new_test.csv' 'WielkiKanionKolorado.csv'
+    # solution.lagrange()
+    solution.spline()
 
 if __name__ == '__main__':
     main()
